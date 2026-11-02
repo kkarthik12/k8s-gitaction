@@ -44,7 +44,7 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /data/db
-              - name: keyfile
+            - name: keyfile
               mountPath: /keyfile
       volumes:
         - name: secret
@@ -130,9 +130,9 @@ apiVersion: v1
 kind: Service
 metadata:
   name: mongo-arb
-  namespace: student-gitaction
+  namespace: student-portal
 spec:
   selector:
     app: mongo-arb
   ports:
-    -port: 27017
+    - port: 27017
