@@ -50,7 +50,7 @@ spec:
           emptyDir: {}
         - name: data
           hostPath:
-            path: /mnt/data/mongo
+            path: /mnt/data/mongo-rs
             type: DirectoryOrCreate
 ---
 apiVersion: v1
