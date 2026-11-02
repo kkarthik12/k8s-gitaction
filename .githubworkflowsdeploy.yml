@@ -1,0 +1,38 @@
+name: deploy-student-app
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ secrets.ACR_LOGIN_SERVER }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          push: true
+          tags: ${{ secrets.ACR_LOGIN_SERVER }}/student-backend:${{ github.sha }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          push: true
+          tags: ${{ secrets.ACR_LOGIN_SERVER }}/student-frontend:${{ github.sha }}
+
+  deploy:
+    needs: build
+    runs-on: [self-hosted, k8s-master]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy
+        run: |
+          sed -i "s|__REGISTRY__|${{ secrets.ACR_LOGIN_SERVER }}|g; s|__TAG__|${{ github.sha }}|g" k8s/*.yaml
+          kubectl apply -n student-gitaction -f k8s/
+          kubectl -n student-gitaction rollout status deployment/mongo --timeout=120s
+          kubectl -n student-gitaction rollout status deployment/backend --timeout=120s
+          kubectl -n student-gitaction rollout status deployment/frontend --timeout=120s

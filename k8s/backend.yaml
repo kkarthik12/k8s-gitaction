@@ -1,43 +1,24 @@
 apiVersion: apps/v1
 kind: Deployment
-metadata:
-  name: backend
-  namespace: student-portal
+metadata: { name: backend }
 spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: backend
+  replicas: 2
+  selector: { matchLabels: { app: backend } }
   template:
-    metadata:
-      labels:
-        app: backend
+    metadata: { labels: { app: backend } }
     spec:
+      imagePullSecrets: [{ name: acr-secret }]
       containers:
         - name: backend
-          image: <dockerhub-user>/sms-backend:1.0
-          ports:
-            - containerPort: 5000
-          envFrom:
-            - secretRef:
-                name: backend-secret
+          image: __REGISTRY__/student-backend:__TAG__
+          ports: [{ containerPort: 5000 }]
           env:
-            - name: FLASK_ENV
-              value: production
-          readinessProbe:
-            tcpSocket:
-              port: 5000
-            initialDelaySeconds: 5
-            periodSeconds: 10
+            - name: MONGO_URI          # match the variable name in your compose file
+              value: mongodb://mongo:27017/studentdb
 ---
 apiVersion: v1
 kind: Service
-metadata:
-  name: backend
-  namespace: student-portal
+metadata: { name: backend }
 spec:
-  selector:
-    app: backend
-  ports:
-    - port: 5000
-      targetPort: 5000
+  selector: { app: backend }
+  ports: [{ port: 5000 }]
