@@ -3,7 +3,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: mongo-a
-  namespace: student-portal
+  namespace: student-gitaction
 spec:
   replicas: 1
   strategy:
@@ -61,7 +61,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: mongo-a
-  namespace: student-portal
+  namespace: student-gitaction
 spec:
   selector:
     app: mongo-a
@@ -80,7 +80,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: mongo-arb
-  namespace: student-portal
+  namespace: student-gitaction
 spec:
   replicas: 1
   selector:
@@ -130,7 +130,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: mongo-arb
-  namespace: student-portal
+  namespace: student-gitaction
 spec:
   selector:
     app: mongo-arb

@@ -2,7 +2,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: frontend
-  namespace: student-portal
+  namespace: student-gitaction
 spec:
   type: ClusterIP
   selector:
