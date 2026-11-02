@@ -1,26 +1,138 @@
+# ---------- Member A (worker1) ----------
 apiVersion: apps/v1
 kind: Deployment
-metadata: { name: mongo }
+metadata:
+  name: mongo-a
+  namespace: student-portal
 spec:
   replicas: 1
-  strategy: { type: Recreate }
-  selector: { matchLabels: { app: mongo } }
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: mongo-a
   template:
-    metadata: { labels: { app: mongo } }
+    metadata:
+      labels:
+        app: mongo-a
     spec:
-      nodeSelector: { student-db: "true" }
+      nodeSelector:
+        mongo: a
+      initContainers:
+        - name: keyfile
+          image: busybox:1.36
+          command: ["sh", "-c", "cp /secret/keyfile /keyfile/keyfile && chmod 400 /keyfile/keyfile && chown 999:999 /keyfile/keyfile"]
+          volumeMounts:
+            - name: secret
+              mountPath: /secret
+            - name: keyfile
+              mountPath: /keyfile
       containers:
         - name: mongo
           image: mongo:7.0
-          ports: [{ containerPort: 27017 }]
-          volumeMounts: [{ name: data, mountPath: /data/db }]
+          args: ["--replSet", "rs0", "--keyFile", "/keyfile/keyfile", "--bind_ip_all"]
+          ports:
+            - containerPort: 27017
+          envFrom:
+            - secretRef:
+                name: mongo-secret
+          readinessProbe:
+            tcpSocket:
+              port: 27017
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          volumeMounts:
+            - name: data
+              mountPath: /data/db
+              - name: keyfile
+              mountPath: /keyfile
       volumes:
+        - name: secret
+          secret:
+            secretName: mongo-keyfile
+        - name: keyfile
+          emptyDir: {}
         - name: data
-          hostPath: { path: /data/mongo, type: DirectoryOrCreate }
+          hostPath:
+            path: /mnt/data/mongo
+            type: DirectoryOrCreate
 ---
 apiVersion: v1
 kind: Service
-metadata: { name: mongo }
+metadata:
+  name: mongo-a
+  namespace: student-portal
 spec:
-  selector: { app: mongo }
-  ports: [{ port: 27017 }]
+  selector:
+    app: mongo-a
+  ports:
+    - port: 27017
+---
+# ---------- Member B (worker2) ----------
+# Same as Member A with FOUR changes:
+#   1. every "mongo-a" -> "mongo-b"
+#   2. nodeSelector: mongo: b
+#   3. REMOVE the envFrom block (root user is created on A and replicates to B)
+#   4. keep the same hostPath /mnt/data/mongo (it is a different worker, so a different disk)
+---
+# ---------- Arbiter (master, no data) ----------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mongo-arb
+  namespace: student-portal
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mongo-arb
+  template:
+    metadata:
+      labels:
+      app: mongo-arb
+    spec:
+      nodeSelector:
+        node-role.kubernetes.io/control-plane: ""
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+      initContainers:
+        - name: keyfile
+          image: busybox:1.36
+          command: ["sh", "-c", "cp /secret/keyfile /keyfile/keyfile && chmod 400 /keyfile/keyfile && chown 999:999 /keyfile/keyfile"]
+          volumeMounts:
+            - name: secret
+              mountPath: /secret
+            - name: keyfile
+              mountPath: /keyfile
+      containers:
+        - name: mongo
+          image: mongo:7.0
+          args: ["--replSet", "rs0", "--keyFile", "/keyfile/keyfile", "--bind_ip_all"]
+          ports:
+            - containerPort: 27017
+          volumeMounts:
+            - name: data
+              mountPath: /data/db
+            - name: keyfile
+              mountPath: /keyfile
+      volumes:
+        - name: secret
+          secret:
+            secretName: mongo-keyfile
+        - name: keyfile
+          emptyDir: {}
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongo-arb
+  namespace: student-portal
+spec:
+  selector:
+    app: mongo-arb
+  ports:
+    -port: 27017

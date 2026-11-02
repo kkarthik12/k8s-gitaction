@@ -1,24 +1,62 @@
 apiVersion: apps/v1
 kind: Deployment
-metadata: { name: backend }
+metadata:
+  name: backend
+  namespace: student-portal
 spec:
   replicas: 2
-  selector: { matchLabels: { app: backend } }
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: backend
   template:
-    metadata: { labels: { app: backend } }
+    metadata:
+      labels:
+        app: backend
     spec:
-      imagePullSecrets: [{ name: acr-secret }]
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app: backend
+              topologyKey: kubernetes.io/hostname
       containers:
         - name: backend
-          image: __REGISTRY__/student-backend:__TAG__
-          ports: [{ containerPort: 5000 }]
+          image: karthikk8s.azurecr.io/sms-backend:1.0
+          ports:
+            - containerPort: 5000
+          envFrom:
+            - secretRef:
+                name: backend-secret
           env:
-            - name: MONGO_URI          # match the variable name in your compose file
-              value: mongodb://mongo:27017/studentdb
+            - name: FLASK_ENV
+              value: production
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 5000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 5000
+            initialDelaySeconds: 15
+            periodSeconds: 20
 ---
 apiVersion: v1
 kind: Service
-metadata: { name: backend }
+metadata:
+  name: backend
+  namespace: student-portal
 spec:
-  selector: { app: backend }
-  ports: [{ port: 5000 }]
+  selector:
+    app: backend
+  ports:
+    - port: 5000
+      targetPort: 5000

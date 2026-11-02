@@ -112,7 +112,7 @@ function App() {
   return (
     <div className="app">
       <header className="header">
-        <h1>🎓 Student Management Portal</h1>
+        <h1>🎓 Student Management Portal git action</h1>
       </header>
 
       <div className="container">
