@@ -89,7 +89,7 @@ spec:
   template:
     metadata:
       labels:
-      app: mongo-arb
+        app: mongo-arb  
     spec:
       nodeSelector:
         node-role.kubernetes.io/control-plane: ""
