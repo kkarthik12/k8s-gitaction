@@ -39,10 +39,10 @@ spec:
   ingressClassName: traefik
   tls:
     - hosts:
-        - karthik.mandelbulbtech.shop
+        - gitaction.mandelbulbtech.shop
       secretName: portal-tls
   rules:
-    - host: karthik.mandelbulbtech.shop
+    - host: gitaction.mandelbulbtech.shop
       http:
         paths:
           - path: /
