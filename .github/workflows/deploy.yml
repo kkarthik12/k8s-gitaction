@@ -5,6 +5,14 @@ on:
     branches: [main]
   workflow_dispatch:
 
+concurrency:
+  group: deploy-student-app
+  cancel-in-progress: false
+
+env:
+  NS: student-gitaction
+  IMAGE_TAG: "1.0"
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -22,41 +30,69 @@ jobs:
         with:
           context: ./backend
           push: true
-          tags: ${{ secrets.ACR_LOGIN_SERVER }}/student-backend-gitaction:1.0
+          tags: |
+            ${{ secrets.ACR_LOGIN_SERVER }}/student-backend-gitaction:1.0
+            ${{ secrets.ACR_LOGIN_SERVER }}/student-backend-gitaction:${{ github.sha }}
 
       - name: Build and push frontend
         uses: docker/build-push-action@v6
         with:
           context: ./frontend
           push: true
-          tags: ${{ secrets.ACR_LOGIN_SERVER }}/student-frontend-gitaction:1.0
+          tags: |
+            ${{ secrets.ACR_LOGIN_SERVER }}/student-frontend-gitaction:1.0
+            ${{ secrets.ACR_LOGIN_SERVER }}/student-frontend-gitaction:${{ github.sha }}
 
   deploy:
     needs: build
     runs-on: [self-hosted, k8s-master]
-    env:
-      NS: student-gitaction
     steps:
       - uses: actions/checkout@v4
 
+      - name: Create or refresh ACR pull secret
+        env:
+          ACR_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
+          ACR_USER: ${{ secrets.ACR_USERNAME }}
+          ACR_PW: ${{ secrets.ACR_PASSWORD }}
+        run: |
+          kubectl create secret docker-registry acr-secret -n "$NS" \
+            --docker-server="$ACR_SERVER" \
+            --docker-username="$ACR_USER" \
+            --docker-password="$ACR_PW" \
+            --dry-run=client -o yaml | kubectl apply -f -
+          kubectl patch serviceaccount default -n "$NS" \
+            -p '{"imagePullSecrets":[{"name":"acr-secret"}]}'
+
       - name: Set image registry and tag in manifests
         run: |
-          sed -i "s|__REGISTRY__|${{ secrets.ACR_LOGIN_SERVER }}|g; s|__TAG__|${{ github.sha }}|g" k8s/*.yaml
+          sed -i "s|__REGISTRY__|${{ secrets.ACR_LOGIN_SERVER }}|g; s|__TAG__|${IMAGE_TAG}|g" k8s/*.yaml
 
       - name: Apply manifests in order
         run: |
           kubectl apply -f k8s/namespace.yaml
-          kubectl apply -n $NS -f k8s/tls.yaml
-          kubectl apply -n $NS -f k8s/mongo.yaml
-          kubectl apply -n $NS -f k8s/mongo-b.yaml
-          kubectl apply -n $NS -f k8s/backend.yaml
-          kubectl apply -n $NS -f k8s/frontend.yaml
-          kubectl apply -n $NS -f k8s/frontend-svc.yaml
+          kubectl apply -n "$NS" -f k8s/tls.yaml
+          kubectl apply -n "$NS" -f k8s/mongo.yaml
+          kubectl apply -n "$NS" -f k8s/mongo-b.yaml
+          kubectl apply -n "$NS" -f k8s/backend.yaml
+          kubectl apply -n "$NS" -f k8s/frontend.yaml
+          kubectl apply -n "$NS" -f k8s/frontend-svc.yaml
 
-      - name: Wait for pods
+      - name: Restart app and wait for rollouts
         run: |
-          kubectl wait --for=condition=Ready pod --all -n $NS --timeout=180s
+          kubectl rollout restart deployment/backend deployment/frontend -n "$NS"
+          for d in mongo-a mongo-b mongo-arb backend frontend; do
+            kubectl rollout status deployment/$d -n "$NS" --timeout=240s
+          done
 
       - name: Show status
         if: always()
-        run: kubectl get pods,svc -n $NS -o wide
+        run: kubectl get pods,svc -n "$NS" -o wide
+
+      - name: Diagnose failure
+        if: failure()
+        run: |
+          kubectl get events -n "$NS" --sort-by=.lastTimestamp | tail -25
+          for p in $(kubectl get pods -n "$NS" --no-headers | grep -v Running | awk '{print $1}'); do
+            echo "=== $p ==="
+            kubectl describe pod "$p" -n "$NS" | tail -15
+          done
