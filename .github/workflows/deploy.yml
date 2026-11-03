@@ -22,14 +22,14 @@ jobs:
         with:
           context: ./backend
           push: true
-          tags: ${{ secrets.ACR_LOGIN_SERVER }}/student-backend-gitaction:${{ github.sha }}
+          tags: ${{ secrets.ACR_LOGIN_SERVER }}/student-backend-gitaction:1.0
 
       - name: Build and push frontend
         uses: docker/build-push-action@v6
         with:
           context: ./frontend
           push: true
-          tags: ${{ secrets.ACR_LOGIN_SERVER }}/student-frontend-gitaction:${{ github.sha }}
+          tags: ${{ secrets.ACR_LOGIN_SERVER }}/student-frontend-gitaction:1.0
 
   deploy:
     needs: build

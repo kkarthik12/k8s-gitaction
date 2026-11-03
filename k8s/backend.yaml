@@ -28,6 +28,7 @@ spec:
       containers:
         - name: backend
           image: karthikk8s.azurecr.io/student-backend-gitaction:1.0
+          imagePullPolicy: Always
           ports:
             - containerPort: 5000
           envFrom:
