@@ -27,6 +27,6 @@ spec:
               topologyKey: kubernetes.io/hostname
       containers:
         - name: frontend
-          image: karthikk8s.azurecr.io/sms-frontend:1.0
+          image: karthikk8s.azurecr.io/student-frontend-gitaction:1.0
           ports:
             - containerPort: 80
